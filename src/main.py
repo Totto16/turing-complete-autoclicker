@@ -14,6 +14,8 @@ from pynput.keyboard import KeyCode, Key
 from pynput._util import AbstractListener
 
 
+## CHANGE CONFIGS HERE -----------------------------------------------------
+
 # change in here and in the bash script, to get the traineddata
 LANG: str = "deu"
 
@@ -22,6 +24,8 @@ intermediate_seconds: float = 0.5  # seconds
 
 # the total input time it takes to input the whole number
 per_round_time: float = 0.5  # seconds
+
+##--------------------------------------------------------------------------
 
 
 def step(act_num: int) -> None:
@@ -37,6 +41,7 @@ def step(act_num: int) -> None:
     amount: int = 8
     click_x_width: float = (click_x2-click_x1)/(amount-1)
     current_point: tuple[int, int] = (click_x1, click_y)
+    # TODO: add a mode, where it is faster, by only going to the ones, it will click, so it can be faster, since moving and clicking blocks for some time, even with per_round_time set to 0.00001 it takes some time!
     for char in bin_num:
         pyautogui.moveTo(current_point)
 
@@ -99,6 +104,9 @@ imagesDir: str = "images"
 
 
 def deleteFolder(dir: str) -> None:
+    if not os.path.exists(dir):
+        return
+
     for filename in os.listdir(dir):
         file_path: str = os.path.join(dir, filename)
         try:
@@ -170,8 +178,9 @@ def fixOCRIssues(inp: str) -> str:
         "L": "1",
         "/": "7",
         ".": "",
-        "in": "",
+        "in": "",  # needed, when the number ands in hang together
         "Ü": "0",
+        "l": "1"
         #  "O": "0", # can also be 6 is some cases :(
     }
 
@@ -222,6 +231,7 @@ def getNumber(imageName: str = "tmp") -> int:
     # took screenshot, reduce nesting here
     image: Image.Image = Image.open(imagePath)
 
+    # TODO these screen coordinates aren't adaptive to the screen resolution or the in game UI Scale feature, fix that! (ingame screen resolution should be modifiable by the user, and the screen resolution can be determined with pyautogui and then factored in!)
     box: Tuple[int, int, int, int] = (800, 500, 1100, 550)
     cropped: Image.Image = image.crop(box)
     # cropped.save("images/cropped.png")
@@ -231,6 +241,7 @@ def getNumber(imageName: str = "tmp") -> int:
 
     # TODO: add more variable settings, so that tesseract may give good results in some case:
     # see https://github.com/tesseract-ocr/tesseract/blob/main/doc/tesseract.1.asc
+    # TODO: change --psm ato all values and also --oem to different ones
 
     max_attempts: int = 5
     attempt_config: list[str] = ["", " --psm 6",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#change in python and here!!
+# change in python and here!!
 LANG="deu"
 
 if [[ ! -d "env" ]]; then
