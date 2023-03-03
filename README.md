@@ -26,8 +26,3 @@ I tested this system with the game and script language set to german ("deu") and
 If it doesn't work on your system feel free to submit an issue, stating desktop, game language, game UI Scaling and screen resolution. 
 
 If it clicks on the wrong spot, it would help me, if you also submit a screenshot with the original resolution! Feel also free to submit a Pull Request fixing the hard coded screen coordinates, doing some maths there or general improvements.
-
-
-## Demonstration
-
-#TODO
