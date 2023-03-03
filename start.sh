@@ -17,4 +17,4 @@ source env/bin/activate
 python3 src/main.py
 
 ## to type check with a tool
-mypy src/main.py
+# mypy src/main.py

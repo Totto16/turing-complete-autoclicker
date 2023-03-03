@@ -2,7 +2,6 @@
   "include": [
     "src"
   ],
-  "stubPath": "src/stubs",
   "venv": "env",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,

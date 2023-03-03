@@ -1,3 +1,9 @@
 {
-    "python.defaultInterpreterPath": "./env/bin/python"
+    "python.defaultInterpreterPath": "./env/bin/python",
+    "cSpell.words": [
+        "pyautogui",
+        "pynput",
+        "pytesseract",
+        "venv"
+    ]
 }
