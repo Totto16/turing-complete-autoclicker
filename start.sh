@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 
-if [ ! -d "env" ]; then
+#change in python and here!!
+LANG="deu"
+
+if [[ ! -d "env" ]]; then
     python3 -m venv env
     pip install -r requirements.txt
 fi
 
+if [[ ! -f "$LANG.traineddata" ]]; then
+    wget "https://github.com/tesseract-ocr/tessdata/raw/main/$LANG.traineddata"
+fi
 
 source env/bin/activate
 

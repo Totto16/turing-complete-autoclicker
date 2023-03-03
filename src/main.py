@@ -5,12 +5,17 @@ from pytesseract import Output
 # for more type tricks etc: https://peps.python.org/pep-0484
 from typing import List, Tuple, cast, TypedDict
 import os
+import json
+import shutil
 import pyautogui
 import time
 from pynput import keyboard
 from pynput.keyboard import KeyCode, Key
 from pynput._util import AbstractListener
 
+
+# change in here and in the bash script, to get the traineddata
+LANG: str = "deu"
 
 # wait time between processing two inputs
 intermediate_seconds: float = 0.5  # seconds
@@ -19,8 +24,8 @@ intermediate_seconds: float = 0.5  # seconds
 per_round_time: float = 0.5  # seconds
 
 
-def main_loop() -> None:
-    num: int = getNumber()
+def step(act_num: int) -> None:
+    num: int = getNumber(f"image_{act_num}")
     bin_num: str = bin(num)[2:]
     bin_num = bin_num.rjust(8, '0')
     print(f"now got number {num}")
@@ -90,25 +95,54 @@ def on_release(key: Key | KeyCode | None) -> None:
     return None
 
 
+imagesDir: str = "images"
+
+
+def deleteFolder(dir: str) -> None:
+    for filename in os.listdir(dir):
+        file_path: str = os.path.join(dir, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+
 def main() -> None:
 
     global intermediate_seconds
+    global imagesDir
 
-    # ...or, in a non-blocking fashion:
+    # if not deleted previously
+    deleteFolder(imagesDir)
+
     listener: keyboard.Listener = keyboard.Listener(
         on_press=on_press,
         on_release=on_release
     )
     listener.start()
 
-    while True:
-        if run_status == "1":
-            main_loop()
-            time.sleep(intermediate_seconds)
-        elif run_status == "2":
-            break
-        else:
-            time.sleep(1/4)
+    # TODO: detect level and click start button, or if it's not the binary race, then do another detection and input method (like negative numbers e.g.)
+
+    i: int = 0
+    try:
+        while True:
+            if run_status == "1":
+                step(i)
+                time.sleep(intermediate_seconds)
+                i = i+1
+            elif run_status == "2":
+                break
+            else:
+                time.sleep(1/4)
+    except RuntimeError as e:
+        print(e)
+        print("did not delete trace images and files")
+    except Exception as e:
+        print(e)
+        deleteFolder(imagesDir)
 
 
 # typed tesseract output
@@ -133,7 +167,12 @@ def fixOCRIssues(inp: str) -> str:
         "[": "1",
         "]": "1",
         "|": "1",
-        "L": "1"
+        "L": "1",
+        "/": "7",
+        ".": "",
+        "in": "",
+        "Ü": "0",
+        #  "O": "0", # can also be 6 is some cases :(
     }
 
     result = inp
@@ -143,26 +182,37 @@ def fixOCRIssues(inp: str) -> str:
     return result
 
 
-def parseNumber(_text: List[str]) -> int:
+def parseNumber(_text: List[str], dump_name: str, raw_ocr: ParsedText) -> int:
     text: list[str] = list(filter(lambda item: item != "", _text))
     if len(text) < 3:
         raise Exception(f"the ocr text is to short: {len(text)}")
     num = text[2]
     if num.isnumeric():
+        with open(dump_name, 'w') as f:
+            json.dump(
+                {"success": True, "raw_num": num, "parsed_num": int(num), "input": text}, f)
         return int(num)
 
     new_num: str = fixOCRIssues(num)
 
     if new_num.isnumeric():
+        with open(dump_name, 'w') as f:
+            json.dump({"success": True, "raw_num": new_num, "parsed_num": int(
+                new_num), "input": text}, f)
         return int(new_num)
 
-    print(text)
-    raise Exception(f"couldn't parse the number from OCR: '{new_num}'")
+    with open(dump_name, 'w') as f:
+        json.dump({"success": False, "raw_num": new_num,
+                  "parsed_num": None, "input": text, "raw": raw_ocr}, f)
+
+    raise Exception(
+        f"couldn't parse the number from OCR: '{new_num}', text: {text}")
 
 
 def getNumber(imageName: str = "tmp") -> int:
     with mss() as sct:
-        imagePath: str = f"images/{imageName}.png"
+        global imagesDir
+        imagePath: str = f"{imagesDir}/{imageName}.png"
         dirName: str = os.path.dirname(imagePath)
         if not os.path.exists(dirName):
             os.makedirs(dirName)
@@ -176,14 +226,38 @@ def getNumber(imageName: str = "tmp") -> int:
     cropped: Image.Image = image.crop(box)
     # cropped.save("images/cropped.png")
 
-    result: ParsedText = cast(
-        ParsedText, pytesseract.image_to_data(cropped, output_type=Output.DICT))
+    global LANG
+    tessdata_dir_config = r'--tessdata-dir "."'
 
-    text: List[str] = result["text"]
-    if (len(text) == 0):
-        raise Exception("the result from the tesseract ocr is an empty list")
+    # TODO: add more variable settings, so that tesseract may give good results in some case:
+    # see https://github.com/tesseract-ocr/tesseract/blob/main/doc/tesseract.1.asc
 
-    return parseNumber(text)
+    max_attempts: int = 5
+    attempt_config: list[str] = ["", " --psm 6",
+                                 " --psm 4", " --psm 7", " --psm 13"]
+    if len(attempt_config) < max_attempts:
+        raise AssertionError(
+            f"The attempts config is to small, it has to be at least {max_attempts} long, but is {len(attempt_config)} long!")
+
+    for attempts in range(max_attempts):
+        try:
+
+            result: ParsedText = cast(
+                ParsedText, pytesseract.image_to_data(cropped, output_type=Output.DICT, lang=LANG, config=tessdata_dir_config + attempt_config[attempts]))
+
+            text: List[str] = result["text"]
+            if (len(text) == 0):
+                raise Exception(
+                    "the result from the tesseract ocr is an empty list")
+
+            return parseNumber(text, f"{imagesDir}/{imageName}_a{attempts}.json", result)
+        except Exception as e:
+            print(f"{e} in attempt {attempts}")
+            # just ignore and continue
+            continue
+
+    raise RuntimeError(
+        f"Couldn't parse the number with OCR in {max_attempts} attempts")
 
 
 if __name__ == "__main__":
